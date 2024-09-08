@@ -7,7 +7,7 @@ import (
 )
 
 // API key for authenticating with the Cloudbet API
-const apikey string = ""
+const apikey string = "APIKEY"
 
 // TestPlaceBet tests the PlaceBet method of the API client
 func TestPlaceBet(t *testing.T) {
@@ -56,11 +56,26 @@ func TestGetTodayFixtures(t *testing.T) {
 	client := NewAPIClient(apikey)
 
 	// Call the GetTodayFixtures method to retrieve today's fixtures for soccer
-	fixtures, err := client.GetTodayFixtures("soccer", 10)
+	fixtures, err := client.GetTodayFixtures("soccer", 1000)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err) // Fail the test if an error occurred
 	}
 
 	// Log the retrieved fixtures
 	t.Logf("%+v", fixtures)
+}
+
+// TestGetEvent tests the GetEvent method of the API client
+func TestGetEvent(t *testing.T) {
+	// Create a new API client with the provided API key
+	client := NewAPIClient(apikey)
+
+	// Call the GetEvent method to get event details
+	event, err := client.GetEvent("12345678")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err) // Fail the test if an error occurred
+	}
+
+	// Log the retrieved fixtures
+	t.Logf("%+v", event)
 }

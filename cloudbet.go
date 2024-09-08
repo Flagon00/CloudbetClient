@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"time"
 	"fmt"
+	"io"
 )
 
 // APIClient is the struct for the Cloudbet API client
@@ -78,16 +79,16 @@ func (c *APIClient) PlaceBet(payload PlaceBetPayload) (*PlaceBetResponse, error)
 	}
 	defer resp.Body.Close() // Ensure the response body is closed after processing
 
-	var placed_bet PlaceBetResponse // Variable to hold the response
-	if err := json.NewDecoder(resp.Body).Decode(&placed_bet); err != nil {
+	var plabeBet PlaceBetResponse // Variable to hold the response
+	if err := json.NewDecoder(resp.Body).Decode(&plabeBet); err != nil {
 		return nil, err // Return error if decoding fails
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return &placed_bet, fmt.Errorf("failed to place bet: %s", resp.Status) // Return error if status is not OK
+		return &plabeBet, fmt.Errorf("failed to place bet: %s", resp.Status) // Return error if status is not OK
 	}
 
-	return &placed_bet, nil // Return the response if successful
+	return &plabeBet, nil // Return the response if successful
 }
 
 // Balance defines the structure for account balance response
@@ -184,26 +185,215 @@ type Competitions struct {
 	Category Category `json:"category"` // Category details
 }
 
-// GetFixtures retrieves upcoming sports fixtures for a specific sport
-func (c *APIClient) GetTodayFixtures(sport string, limit int) (*Fixtures, error) {
+// GetTodayFixtures retrieves upcoming sports fixtures for a specific sport, clear body
+func (c *APIClient) GetTodayFixtures(sport string, limit int) (string, error) {
 	// Create a new GET request to retrieve today's fixtures for the specified sport
 	req, err := http.NewRequest("GET", c.BaseURL+fmt.Sprintf("/pub/v2/odds/fixtures?sport=%s&date=%s&players=false&limit=%d", sport, fmt.Sprint(time.Now().Format("2006-01-02")), limit), nil)
 	if err != nil {
-		return nil, err // Return error if request creation fails
+		return "", err // Return error if request creation fails
 	}
+
 	req.Header.Set("X-API-Key", c.APIKey) // Set the API key in the header
 	req.Header.Set("accept", "application/json") // Set accept header for JSON response
 
 	resp, err := c.Client.Do(req) // Send the request
 	if err != nil {	
-		return nil, err // Return error if request fails
+		return "", err // Return error if request fails
 	}
 	defer resp.Body.Close() // Ensure the response body is closed after processing
 
-	var fixtures Fixtures // Variable to hold the fixtures response
-	if err := json.NewDecoder(resp.Body).Decode(&fixtures); err != nil {
-		return nil, err // Return error if decoding fails
+	body, err := io.ReadAll(resp.Body) // Read the response body
+	if err != nil {
+		return "", err // Return error if reading body fails
 	}
 
-	return &fixtures, nil // Return the fixtures response
+	return string(body), nil // Return the response body as a string
+}
+// GetFixtures retrieves upcoming sports fixtures for a specific sport in JSON format
+func (c *APIClient) GetTodayFixturesJSON(sport string, limit int) (*Fixtures, error) {
+	jsonBody, err := c.GetTodayFixtures(sport, limit) // Call to retrieve today's fixtures for the specified sport
+	if err != nil {
+		return nil, err // Return error if the function fails to retrieve fixtures
+	}
+
+	var fixtures Fixtures // Variable to hold the parsed fixtures response
+	err = json.Unmarshal([]	byte(jsonBody), &fixtures) // Unmarshal JSON response into the fixtures variable
+	if err != nil {
+		return nil, err // Return error if JSON unmarshalling fails
+	}
+
+	return &fixtures, nil // Return the parsed fixtures response
+}
+
+// Event represents a sports event with various attributes
+type Event struct {
+	Away            EventAway   	`json:"away"` // Away team details
+	Competition     Competition 	`json:"competition"` // Competition details
+	CutoffTime      time.Time   	`json:"cutoffTime"` // Cutoff time for the event
+	EndTime         time.Time   	`json:"endTime"` // End time of the event
+	GradingDuration int         	`json:"gradingDuration"` // Duration for grading the event
+	Home            EventHome   	`json:"home"` // Home team details
+	ID              int         	`json:"id"` // Unique identifier for the event
+	Key             string      	`json:"key"` // Key for the event
+	Markets         EventMarkets	`json:"markets"` // Betting markets associated with the event
+	Metadata        Metadata    	`json:"metadata"` // Additional metadata for the event
+	Name            string      	`json:"name"` // Name of the event
+	ResultedTime    time.Time   	`json:"resultedTime"` // Time when the event result was recorded
+	Sequence        int         	`json:"sequence"` // Sequence number of the event
+	Settlement      Settlement  	`json:"settlement"` // Settlement details for the event
+	EventSport           Sport     	`json:"sport"` // Sport type of the event
+	Status          string      	`json:"status"` // Current status of the event
+	Type            int         	`json:"type"` // Type of the event
+}
+
+// Away represents details of the away team
+type EventAway struct {
+	Abbreviation string `json:"abbreviation"` // Abbreviation of the away team
+	Key          string `json:"key"` // Key for the away team
+	Name         string `json:"name"` // Name of the away team
+	Nationality  string `json:"nationality"` // Nationality of the away team
+}
+
+// Category represents a category of competition
+type EventCategory struct {
+	Key  string `json:"key"` // Key for the category
+	Name string `json:"name"` // Name of the category
+}
+
+// Competition represents details of a sports competition
+type Competition struct {
+	Category Category `json:"category"` // Category of the competition
+	Key      string   `json:"key"` // Key for the competition
+	Name     string   `json:"name"` // Name of the competition
+}
+
+// Home represents details of the home team
+type EventHome struct {
+	Abbreviation string `json:"abbreviation"` // Abbreviation of the home team
+	Key          string `json:"key"` // Key for the home team
+	Name         string `json:"name"` // Name of the home team
+	Nationality  string `json:"nationality"` // Nationality of the home team
+}
+
+// Selections represent betting selections with various attributes
+type Selections struct {
+	MaxStake    float64 `json:"maxStake"` // Maximum stake for the selection
+	MinStake    float64 `json:"minStake"` // Minimum stake for the selection
+	Outcome     string  `json:"outcome"` // Outcome of the selection
+	Params      string  `json:"params"` // Additional parameters for the selection
+	Price       float64 `json:"price"` // Price of the selection
+	Probability float64 `json:"probability"` // Probability of the outcome
+	Side        string  `json:"side"` // Side of the selection (e.g., home or away)
+	Status      string  `json:"status"` // Status of the selection
+}
+
+// AdditionalProp1, AdditionalProp2, AdditionalProp3 represent additional properties for selections
+type AdditionalProp1 struct {
+	Selections []Selections `json:"selections"` // List of selections
+	Sequence   int          `json:"sequence"` // Sequence number for the property
+}
+
+type AdditionalProp2 struct {
+	Layout string `json:"layout"`
+	Scores string `json:"scores"`
+}
+
+type AdditionalProp3 struct {
+	Layout string `json:"layout"`
+	Scores string `json:"scores"`
+}
+
+// Submarkets represent various submarkets for betting
+type Submarkets struct {
+	AdditionalProp1 AdditionalProp1 `json:"additionalProp1"` // First additional property
+	AdditionalProp2 AdditionalProp2 `json:"additionalProp2"` // Second additional property
+	AdditionalProp3 AdditionalProp3 `json:"additionalProp3"` // Third additional property
+}
+
+// Markets represent different betting markets available for an event
+type EventMarkets struct {
+	AdditionalProp1 AdditionalProp1 `json:"additionalProp1"` // First additional property
+	AdditionalProp2 AdditionalProp2 `json:"additionalProp2"` // Second additional property
+	AdditionalProp3 AdditionalProp3 `json:"additionalProp3"` // Third additional property
+}
+
+// Opinion represents an opinion on a market
+type Opinion struct {
+	MarketKey   string  `json:"marketKey"` // Key for the market
+	Outcome     string  `json:"outcome"` // Outcome of the opinion
+	Params      string  `json:"params"` // Additional parameters for the opinion
+	Probability float64 `json:"probability"` // Probability associated with the opinion
+}
+
+// Categories represent categories within opinions
+type Categories struct {
+	MarketKey   string  `json:"marketKey"` // Key for the market
+	Outcome     string  `json:"outcome"` // Outcome for the category
+	Params      string  `json:"params"` // Additional parameters for the category
+	Probability float64 `json:"probability"` // Probability associated with the category
+}
+
+// Opinions represent a collection of opinions
+type Opinions struct {
+	AdditionalProp1 AdditionalProp1 `json:"additionalProp1"` // First additional property
+	AdditionalProp2 AdditionalProp2 `json:"additionalProp2"` // Second additional property
+	AdditionalProp3 AdditionalProp3 `json:"additionalProp3"` // Third additional property
+}
+
+// Metadata contains additional information about an event
+type Metadata struct {
+	Opinion  []Opinion `json:"opinion"` // List of opinions on the event
+	Opinions Opinions  `json:"opinions"` // Collection of opinions
+}
+
+// Settlement represents the settlement details for an event
+type Settlement struct {
+	AdditionalProp1 AdditionalProp1 `json:"additionalProp1"` // First additional property
+	AdditionalProp2 AdditionalProp2 `json:"additionalProp2"` // Second additional property
+	AdditionalProp3 AdditionalProp3 `json:"additionalProp3"` // Third additional property
+}
+
+// Sport represents a sport type
+type EventSport struct {
+	Key  string `json:"key"` // Key for the sport
+	Name string `json:"name"` // Name of the sport
+}
+
+// GetEvent retrieves a specific event by its ID
+func (c *APIClient) GetEvent(id string) (string, error) {
+	// Create a new GET request to retrieve event details by its ID
+	req, err := http.NewRequest("GET", c.BaseURL+fmt.Sprintf("/pub/v2/odds/events/%s", id), nil)
+	if err != nil {
+		return "", err // Return error if request creation fails
+	}
+	req.Header.Set("X-API-Key", c.APIKey) // Set the API key in the request header
+
+	resp, err := c.Client.Do(req) // Send the request to the server
+	if err != nil {
+		return "", err // Return error if the request fails
+	}
+	defer resp.Body.Close() // Ensure the response body is closed after processing
+
+	bodyBytes, err := io.ReadAll(resp.Body) // Read the response body
+	if err != nil {
+		return "", err // Return error if reading the body fails
+	}
+
+	return string(bodyBytes), nil // Return the response body as a string
+}
+
+// GetEventJSON retrieves a specific event in JSON format by its ID
+func (c *APIClient) GetEventJSON(id string) (*Event, error) {
+	jsonBody, err := c.GetEvent(id) // Call to retrieve event details
+	if err != nil {
+		return nil, err // Return error if the function fails
+	}
+
+	var event Event // Variable to hold the parsed event response
+	err = json.Unmarshal([]byte(jsonBody), &event) // Unmarshal JSON response into the event variable
+	if err != nil {
+		return nil, err // Return error if JSON unmarshalling fails
+	}
+
+	return &event, nil // Return the parsed event response
 }
