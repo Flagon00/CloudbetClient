@@ -1,4 +1,4 @@
-module github.com/flagon00/CloudBet
+module github.com/Flagon00/CloudbetClient
 
 go 1.22.2
 
